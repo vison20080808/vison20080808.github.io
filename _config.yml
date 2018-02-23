@@ -3,7 +3,7 @@ title: vison20080808
 SEOTitle: vison20080808的博客 | vison20080808 Blog
 header-img: img/home-bg.jpg
 email: vison20080808@163.com
-description: "关于Android Apps & Framework"
+description: "代码与生活"
 keyword: "vison20080808, vison20080808的博客, 博客, 个人网站, 互联网, Web, Android, Framework"
 url: ""              # your host, for absolute URL, https://huangxuan.me
 baseurl: ""                             # for example, '/blog' if your blog hosted on 'host/blog'
@@ -85,7 +85,7 @@ service-worker: true
 
 
 # Friends
-friends: [
+#friends: [
     #{
     #    title: "乱序",
     #    href: "http://mida.re/"
@@ -93,4 +93,4 @@ friends: [
     #    title: "前端外刊评论",
     #    href: "http://qianduan.guru/"
     #}
-]
+#]
