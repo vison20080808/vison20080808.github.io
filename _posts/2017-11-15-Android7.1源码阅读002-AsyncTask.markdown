@@ -1,0 +1,198 @@
+---
+layout:     post
+title:      "Android7.1源码阅读002-AsyncTask"
+subtitle:   "Android7.1源码系列之一"
+date:       2017-11-15
+author:     "ZhanTao"
+header-img: "img/android_7.1_bg.jpeg"
+catalog: true
+tags:
+    - Android
+    - Code
+    - Framework
+---
+
+> 大纲：
+- 1.何为AsyncTask？
+- 2.使用注意
+- 3.结构&原理
+- 4.任务执行过程
+
+
+# 1、何为AsyncTask?
+
+- android.os.AsyncTask
+- 执行异步任务的帮助类，便于开发者在子线程中更新UI
+- http://androidxref.com/7.1.1_r6/xref/frameworks/base/core/java/android/os/AsyncTask.java
+
+# 2、使用注意
+
+- 实例必须在UI线程中创建
+- execute()必须在UI线程中调用
+- 不要手动调用onPreExecute()，doInBackground()，onProgressUpdate()，onPostExecute()
+- 不能在doInBackground()中更新UI
+- 一个任务实例只能执行一次，如果执行第二次将会抛出异常
+
+# 3、结构&原理
+
+## 封装了线程池、Handler
+### 线程池：
+``` java
+- 199    private static final BlockingQueue<Runnable> sPoolWorkQueue =
+- 200            new LinkedBlockingQueue<Runnable>(128);//任务队列
+- 205    public static final Executor THREAD_POOL_EXECUTOR;//可用于执行并行parallel任务的线程池
+- 206
+- 207    static {
+- 208        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
+- 209                CORE_POOL_SIZE, MAXIMUM_POOL_SIZE, KEEP_ALIVE_SECONDS, TimeUnit.SECONDS,
+- 210                sPoolWorkQueue, sThreadFactory);//KEEP_ALIVE_SECONDS = 30，非核心线程闲置超时时长，会被回收
+- 211        threadPoolExecutor.allowCoreThreadTimeOut(true);//核心线程也有超时策略，同非核心线程
+- 212        THREAD_POOL_EXECUTOR = threadPoolExecutor;
+- 213    }
+```
+
+- ThreadPoolExecutor参数：核心线程数（默认一直存在）、最大线程数、非核心线程闲置超时时长、时长单位、任务队列、线程工厂；
+- ThreadPoolExecutor执行过程：启动核心线程；核心线程数满，则插入任务队列排队等待；无法插入队列，且最大线程数未满，则立刻启动非核心线程；上述最大线程数满，则拒绝该任务，默认抛异常java.util.concurrent.RejectedExecutionException。
+
+``` java
+- 219    public static final Executor SERIAL_EXECUTOR = new SerialExecutor();//串行serial线程池
+- 235    private static class SerialExecutor implements Executor {//以下封装了串行serial排队逻辑
+- 236        final ArrayDeque<Runnable> mTasks = new ArrayDeque<Runnable>();
+- 237        Runnable mActive;
+- 238
+- 239        public synchronized void execute(final Runnable r) {
+- 240            mTasks.offer(new Runnable() {
+- 241                public void run() {
+- 242                    try {
+- 243                        r.run();
+- 244                    } finally {
+- 245                        scheduleNext();
+- 246                    }
+- 247                }
+- 248            });
+- 249            if (mActive == null) {
+- 250                scheduleNext();
+- 251            }
+- 252        }
+- 253
+- 254        protected synchronized void scheduleNext() {
+- 255            if ((mActive = mTasks.poll()) != null) {
+- 256                THREAD_POOL_EXECUTOR.execute(mActive);
+- 257            }
+- 258        }
+- 259    }
+```
+
+### Handler:
+``` java
+225    private static InternalHandler sHandler;
+- 672    private static class InternalHandler extends Handler {
+- 673        public InternalHandler() {
+- 674            super(Looper.getMainLooper());//主线程handler
+- 675        }
+```
+
+#4、任务执行过程
+
+##一些变量：
+``` java
+227    private final WorkerRunnable<Params, Result> mWorker;//mFuture = new FutureTask<Result>(mWorker){}，回调
+- 228    private final FutureTask<Result> mFuture;//exec.execute(mFuture)，任务
+- 232    private final AtomicBoolean mCancelled = new AtomicBoolean();//cancel标志位
+- 233    private final AtomicBoolean mTaskInvoked = new AtomicBoolean();
+```
+
+## 串行or并行：
+``` java
+- 224    private static volatile Executor sDefaultExecutor = SERIAL_EXECUTOR;//默认串行
+
+- 289    /** @hide */
+- 290    public static void setDefaultExecutor(Executor exec) {
+- 291        sDefaultExecutor = exec;
+- 292    }
+```
+
+## 初始化：
+``` java
+297    public AsyncTask() {
+- 298        mWorker = new WorkerRunnable<Params, Result>() {
+- 299            public Result call() throws Exception {
+- 300                mTaskInvoked.set(true);
+- 301                Result result = null;
+- 302                try {
+- 303                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+- 304                    //noinspection unchecked
+- 305                    result = doInBackground(mParams);//核心回调函数~~~
+- 306                    Binder.flushPendingCommands();
+- 307                } catch (Throwable tr) {
+- 308                    mCancelled.set(true);//设置cancel标志位
+- 309                    throw tr;
+- 310                } finally {
+- 311                    postResult(result);//返回结果
+- 312                }
+- 313                return result;
+- 314            }
+- 315        };
+- 316
+- 317        mFuture = new FutureTask<Result>(mWorker) {
+- 318            @Override
+- 319            protected void done() {//异常过程调用
+- 320                try {
+- 321                    postResultIfNotInvoked(get());
+- 322                } catch (InterruptedException e) {
+- 323                    android.util.Log.w(LOG_TAG, e);
+- 324                } catch (ExecutionException e) {
+- 325                    throw new RuntimeException("An error occurred while executing doInBackground()",
+- 326                            e.getCause());
+- 327                } catch (CancellationException e) {
+- 328                    postResultIfNotInvoked(null);
+- 329                }
+- 330            }
+- 331        };
+- 332    }
+```
+
+##默认execute()执行过程：
+``` java
+- 566    public final AsyncTask<Params, Progress, Result> execute(Params... params) {
+- 567        return executeOnExecutor(sDefaultExecutor, params);
+- 568    }
+- 604    public final AsyncTask<Params, Progress, Result> executeOnExecutor(Executor exec,
+- 605            Params... params) {
+- 606        if (mStatus != Status.PENDING) {
+- 607            switch (mStatus) {
+- 608                case RUNNING:
+- 609                    throw new IllegalStateException("Cannot execute task:"
+- 610                            + " the task is already running.");
+- 611                case FINISHED:
+- 612                    throw new IllegalStateException("Cannot execute task:"
+- 613                            + " the task has already been executed "
+- 614                            + "(a task can be executed only once)");
+- 615            }
+- 616        }
+- 617
+- 618        mStatus = Status.RUNNING;
+- 619
+- 620        onPreExecute();
+- 621
+- 622        mWorker.mParams = params;
+- 623        exec.execute(mFuture);
+- 624
+- 625        return this;
+- 626    }
+```
+
+## 改为并行调用的方式：
+executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR)
+
+##返回结果:
+``` java
+- 663    private void finish(Result result) {
+- 664        if (isCancelled()) {
+- 665            onCancelled(result);
+- 666        } else {
+- 667            onPostExecute(result);
+- 668        }
+- 669        mStatus = Status.FINISHED;
+- 670    }
+```
