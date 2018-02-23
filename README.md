@@ -2,5 +2,5 @@
 
 ## 感谢
 
-**[主题来自 &rarr;](https://github.com/Huxpro/huxpro.github.io)**
+**主题来自 &rarr; [https://github.com/Huxpro/huxpro.github.io](https://github.com/Huxpro/huxpro.github.io)**
 
