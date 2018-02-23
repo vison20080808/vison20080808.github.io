@@ -94,7 +94,7 @@ tags:
 
 # 4、任务执行过程
 
-##一些变量：
+## 一些变量：
 ``` java
 227    private final WorkerRunnable<Params, Result> mWorker;//mFuture = new FutureTask<Result>(mWorker){}，回调
 - 228    private final FutureTask<Result> mFuture;//exec.execute(mFuture)，任务
@@ -152,7 +152,7 @@ tags:
 - 332    }
 ```
 
-##默认execute()执行过程：
+## 默认execute()执行过程：
 ``` java
 - 566    public final AsyncTask<Params, Progress, Result> execute(Params... params) {
 - 567        return executeOnExecutor(sDefaultExecutor, params);
@@ -185,7 +185,7 @@ tags:
 ## 改为并行调用的方式：
 executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR)
 
-##返回结果:
+## 返回结果:
 ``` java
 - 663    private void finish(Result result) {
 - 664        if (isCancelled()) {
