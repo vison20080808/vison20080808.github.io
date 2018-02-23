@@ -27,7 +27,8 @@ tags:
 
 # 2、数据结构&基本原理
 - 基于数组、单链表；Key对象的散列码hashCode决定了其数组位置、通过单链表解决hash冲突（链表法、非开放地址法）。
-- transient HashMapEntry<K,V>[] table
+- transient HashMapEntry<K,V>[] table.
+
 ``` java
 - 730    static class HashMapEntry<K,V> implements Map.Entry<K,V> {
 - 731        final K key;
